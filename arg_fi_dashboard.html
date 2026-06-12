@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARG Fixed Income — Live Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f9;
+    color: #20384E;
+    font-size: 13px;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: #003468;
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 3px solid #24847C;
+  }
+  .header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+  .header .subtitle { font-size: 11px; color: #A8A9AD; margin-top: 2px; }
+  .header-right { text-align: right; font-size: 11px; color: #A8A9AD; }
+  #last-update { font-size: 12px; color: #5E9EA0; font-weight: 600; }
+
+  /* ── Tabs ── */
+  .tabs {
+    background: #20384E;
+    display: flex;
+    gap: 2px;
+    padding: 0 24px;
+  }
+  .tab {
+    padding: 10px 18px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #A8A9AD;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .tab:hover { color: #fff; }
+  .tab.active { color: #5E9EA0; border-bottom-color: #24847C; }
+
+  /* ── Layout ── */
+  .page { display: none; padding: 20px 24px; }
+  .page.active { display: block; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-1 { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .span-2 { grid-column: span 2; }
+  .span-3 { grid-column: span 3; }
+
+  /* ── Cards ── */
+  .card {
+    background: #fff;
+    border-radius: 6px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border-top: 3px solid #6B96C3;
+  }
+  .card.teal { border-top-color: #24847C; }
+  .card.navy { border-top-color: #003468; }
+  .card.gray { border-top-color: #708090; }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #708090;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #24847C; flex-shrink: 0;
+  }
+
+  /* ── KPI Pills ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .kpi-pill {
+    background: #f4f6f9;
+    border-radius: 4px;
+    padding: 10px 12px;
+    border-left: 3px solid #6B96C3;
+  }
+  .kpi-pill .label { font-size: 10px; color: #708090; font-weight: 600; letter-spacing: 0.5px; }
+  .kpi-pill .value { font-size: 18px; font-weight: 700; color: #003468; margin-top: 2px; }
+  .kpi-pill .sub { font-size: 10px; color: #A8A9AD; margin-top: 1px; }
+  .pos { color: #24847C !important; }
+  .neg { color: #d9534f !important; }
+
+  /* ── Table ── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th {
+    background: #f4f6f9;
+    color: #708090;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 8px 10px;
+    text-align: right;
+    border-bottom: 2px solid #D9DAD5;
+  }
+  .data-table th:first-child { text-align: left; }
+  .data-table td {
+    padding: 7px 10px;
+    text-align: right;
+    border-bottom: 1px solid #f4f6f9;
+    color: #20384E;
+    font-weight: 500;
+  }
+  .data-table td:first-child { text-align: left; font-weight: 700; color: #003468; }
+  .data-table tr:hover td { background: #f8fafc; }
+  .data-table tr.selected td { background: #EBF4F8; }
+
+  /* ── Chart containers ── */
+  .chart-wrap { position: relative; height: 300px; }
+  .chart-wrap.tall { height: 380px; }
+  .chart-wrap.short { height: 220px; }
+
+  /* ── Controls ── */
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .btn {
+    padding: 5px 12px;
+    border: 1px solid #6B96C3;
+    border-radius: 3px;
+    background: #fff;
+    color: #003468;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: #6B96C3; color: #fff; }
+  .btn.active { background: #003468; color: #fff; border-color: #003468; }
+  .btn.teal-btn { border-color: #24847C; }
+  .btn.teal-btn:hover, .btn.teal-btn.active { background: #24847C; border-color: #24847C; color: #fff; }
+
+  select {
+    padding: 5px 10px;
+    border: 1px solid #D9DAD5;
+    border-radius: 3px;
+    font-size: 11px;
+    color: #20384E;
+    background: #fff;
+    cursor: pointer;
+  }
+
+  /* ── Loader ── */
+  .loader {
+    text-align: center;
+    padding: 40px;
+    color: #708090;
+    font-size: 13px;
+  }
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid #D9DAD5;
+    border-top-color: #24847C;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Spread badge ── */
+  .spread-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    background: #EBF4F8;
+    color: #486EAE;
+  }
+
+  /* ── Curve selector ── */
+  .curve-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+  .legend-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; cursor: pointer;
+    padding: 3px 8px; border-radius: 3px;
+    border: 1px solid #D9DAD5;
+    transition: all 0.15s;
+  }
+  .legend-item.off { opacity: 0.35; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* ── Tooltip override ── */
+  .info-bar {
+    background: #20384E;
+    color: #D9DAD5;
+    padding: 8px 16px;
+    font-size: 11px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .info-bar span { color: #5E9EA0; font-weight: 700; }
+
+  /* responsive */
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .span-2, .span-3 { grid-column: span 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header h1" style="font-size:18px;font-weight:700;">🇦🇷 ARG Fixed Income — Live Dashboard</div>
+    <div class="subtitle">Datos: data912.com · Soberanos Hard USD · Letras · TAMAR · Curvas de rendimiento</div>
+  </div>
+  <div class="header-right">
+    <div>Actualizado: <span id="last-update">cargando…</span></div>
+    <div style="margin-top:4px;color:#D9DAD5;">Fuente: BYMA vía data912 API</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showPage('curves')">Curvas de Rendimiento</div>
+  <div class="tab" onclick="showPage('table')">Panel de Precios</div>
+  <div class="tab" onclick="showPage('history')">Histórico</div>
+  <div class="tab" onclick="showPage('spreads')">Spreads & Análisis</div>
+</div>
+
+<!-- ════════════════════════════════════════ PAGE: CURVES ════════════════════════════════════════ -->
+<div class="page active" id="page-curves">
+  <div id="curves-loader" class="loader"><div class="spinner"></div>Cargando datos live…</div>
+  <div id="curves-content" style="display:none;">
+
+    <!-- KPI row -->
+    <div class="kpi-grid" id="kpi-row"></div>
+
+    <div class="grid-2">
+      <!-- Yield Curve USD Soberanos -->
+      <div class="card teal span-2">
+        <div class="card-title"><div class="dot"></div>Curva de Rendimiento — Soberanos Hard USD (GD & AL)</div>
+        <div class="controls">
+          <button class="btn active" onclick="toggleCurve('GD')">GD (Ley NY)</button>
+          <button class="btn active" onclick="toggleCurve('AL')">AL (Ley ARG)</button>
+          <button class="btn active" onclick="toggleCurve('AO')">AO/BONARs</button>
+          <div style="margin-left:auto;font-size:11px;color:#708090;">Eje X = Duration Modificada · Eje Y = YTM estimada</div>
+        </div>
+        <div class="chart-wrap tall"><canvas id="yieldCurveChart"></canvas></div>
+      </div>
+
+      <!-- LECAPs / TAMAR curve -->
+      <div class="card navy">
+        <div class="card-title"><div class="dot" style="background:#6B96C3"></div>Curva Soberanos en $ — LECAP / BONCAP</div>
+        <div class="controls">
+          <button class="btn active teal-btn" onclick="setPesosCurveType('lecap')">LECAPs</button>
+          <button class="btn teal-btn" onclick="setPesosCurveType('tamar')">TAMAR</button>
+        </div>
+        <div class="chart-wrap"><canvas id="pesosCurveChart"></canvas></div>
+      </div>
+
+      <!-- Z-spread / paridad scatter -->
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:#486EAE"></div>Paridad vs Duration — Soberanos USD</div>
+        <div class="chart-wrap"><canvas id="scatterChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ PAGE: TABLE ════════════════════════════════════════ -->
+<div class="page" id="page-table">
+  <div id="table-loader" class="loader"><div class="spinner"></div>Cargando…</div>
+  <div id="table-content" style="display:none;">
+    <div class="grid-2">
+      <div class="card teal">
+        <div class="card-title"><div class="dot"></div>Soberanos Hard USD — Precios en USD (sufijo D)</div>
+        <div class="controls">
+          <button class="btn active" onclick="filterTable('usd','all')">Todos</button>
+          <button class="btn" onclick="filterTable('usd','GD')">GD</button>
+          <button class="btn" onclick="filterTable('usd','AL')">AL</button>
+          <button class="btn" onclick="filterTable('usd','AO')">BONARs</button>
+        </div>
+        <table class="data-table" id="usd-table">
+          <thead><tr><th>Ticker</th><th>Bid</th><th>Ask</th><th>Ult.</th><th>Vol.</th><th>Δ%</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card navy">
+        <div class="card-title"><div class="dot" style="background:#6B96C3"></div>Instrumentos en Pesos — Letras & TAMAR</div>
+        <div class="controls">
+          <button class="btn active" onclick="filterTable('ars','all')">Todos</button>
+          <button class="btn" onclick="filterTable('ars','TZX')">LECAPs</button>
+          <button class="btn" onclick="filterTable('ars','TXM')">TAMAR</button>
+          <button class="btn" onclick="filterTable('ars','TX')">CER</button>
+        </div>
+        <table class="data-table" id="ars-table">
+          <thead><tr><th>Ticker</th><th>Bid</th><th>Ask</th><th>Ult.</th><th>Vol.</th><th>Δ%</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ PAGE: HISTORY ════════════════════════════════════════ -->
+<div class="page" id="page-history">
+  <div class="card">
+    <div class="card-title"><div class="dot"></div>Histórico de Precios — OHLC + Rendimiento implícito</div>
+    <div class="controls">
+      <select id="hist-ticker" onchange="loadHistory()">
+        <option value="GD30">GD30</option>
+        <option value="GD35">GD35</option>
+        <option value="GD38">GD38</option>
+        <option value="GD41">GD41</option>
+        <option value="GD46">GD46</option>
+        <option value="GD29">GD29</option>
+        <option value="AL30">AL30</option>
+        <option value="AL35">AL35</option>
+        <option value="AL41">AL41</option>
+        <option value="AO27">AO27</option>
+        <option value="AO28">AO28</option>
+        <option value="TZX26">TZX26</option>
+        <option value="TZX27">TZX27</option>
+        <option value="TZX28">TZX28</option>
+        <option value="TXMD8">TXMD8</option>
+        <option value="TXMD9">TXMD9</option>
+        <option value="TXMJ0">TXMJ0</option>
+      </select>
+      <button class="btn" onclick="setRange(30)">1M</button>
+      <button class="btn" onclick="setRange(90)">3M</button>
+      <button class="btn active" onclick="setRange(180)">6M</button>
+      <button class="btn" onclick="setRange(365)">1A</button>
+      <button class="btn" onclick="setRange(9999)">Todo</button>
+      <div style="margin-left:auto;">
+        <label style="font-size:11px;color:#708090;">Ver: </label>
+        <button class="btn active" onclick="setHistView('price')">Precio</button>
+        <button class="btn" onclick="setHistView('yield')">Yield (SA)</button>
+        <button class="btn" onclick="setHistView('volume')">Volumen</button>
+      </div>
+    </div>
+    <div id="hist-loader" class="loader" style="display:none;"><div class="spinner"></div></div>
+    <div class="chart-wrap tall"><canvas id="histChart"></canvas></div>
+    <div class="info-bar" id="hist-stats"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════ PAGE: SPREADS ════════════════════════════════════════ -->
+<div class="page" id="page-spreads">
+  <div id="spreads-loader" class="loader"><div class="spinner"></div>Cargando…</div>
+  <div id="spreads-content" style="display:none;">
+    <div class="grid-3">
+      <div class="card teal span-3">
+        <div class="card-title"><div class="dot"></div>Análisis de Spreads — GD vs AL (Ley NY vs ARG) & Curva por Vencimiento</div>
+        <div class="chart-wrap"><canvas id="spreadChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:#486EAE"></div>Ranking por Rendimiento (YTM est.)</div>
+        <div id="ytm-ranking"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><div class="dot" style="background:#708090"></div>Volumen del Día</div>
+        <div class="chart-wrap short"><canvas id="volChart"></canvas></div>
+      </div>
+
+      <div class="card navy">
+        <div class="card-title"><div class="dot" style="background:#6B96C3"></div>Métricas Clave</div>
+        <div id="metrics-panel"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+// DATA & STATE
+// ════════════════════════════════════════════════
+const API = 'https://data912.com';
+
+const PALETTE = {
+  navy:  '#003468', steel: '#6B96C3', gray:  '#A8A9AD',
+  slate: '#20384E', teal:  '#24847C', blue:  '#486EAE',
+  cadet:'#5E9EA0',  dteal: '#3C5F59', mteal: '#2E8A87',
+  sgray: '#708090', lgray: '#D9DAD5'
+};
+
+// Hard USD soberano metadata: ticker -> {maturity, duration, coupon, law}
+const BOND_META = {
+  GD29: { mat: '2029-01-09', dur: 2.5,  coup: 1.75, law: 'NY',  series: 'GD' },
+  GD30: { mat: '2030-07-09', dur: 4.2,  coup: 0.75, law: 'NY',  series: 'GD' },
+  GD35: { mat: '2035-07-09', dur: 7.8,  coup: 3.625,law: 'NY',  series: 'GD' },
+  GD38: { mat: '2038-01-09', dur: 9.1,  coup: 4.25, law: 'NY',  series: 'GD' },
+  GD41: { mat: '2041-07-09', dur:10.8,  coup: 4.125,law: 'NY',  series: 'GD' },
+  GD46: { mat: '2046-07-09', dur:12.5,  coup: 4.625,law: 'NY',  series: 'GD' },
+  AL29: { mat: '2029-07-09', dur: 2.7,  coup: 1.0,  law: 'ARG', series: 'AL' },
+  AL30: { mat: '2030-07-09', dur: 4.2,  coup: 0.5,  law: 'ARG', series: 'AL' },
+  AL35: { mat: '2035-07-09', dur: 7.8,  coup: 3.625,law: 'ARG', series: 'AL' },
+  AL41: { mat: '2041-07-09', dur:10.8,  coup: 4.125,law: 'ARG', series: 'AL' },
+  AO27: { mat: '2027-07-09', dur: 1.1,  coup: 8.75, law: 'ARG', series: 'AO' },
+  AO28: { mat: '2028-01-09', dur: 1.6,  coup: 7.875,law: 'ARG', series: 'AO' },
+};
+
+// LECAP/BONCAP metadata (TZX series = discount LECAPs, TZV = BONCAP tasa fija)
+const LECAP_META = {
+  TZX26: { mat: '2026-09-30', dur: 0.30, type: 'LECAP' },
+  TZX27: { mat: '2027-03-31', dur: 0.75, type: 'LECAP' },
+  TZX28: { mat: '2028-03-31', dur: 1.75, type: 'LECAP' },
+  TZV26: { mat: '2026-09-30', dur: 0.30, type: 'BONCAP' },
+  TZV27: { mat: '2027-03-31', dur: 0.75, type: 'BONCAP' },
+  TZV28: { mat: '2028-03-31', dur: 1.75, type: 'BONCAP' },
+};
+
+// TAMAR metadata (bullet TAMAR bonds)
+const TAMAR_META = {
+  TXMD8: { mat: '2028-06-14', dur: 2.0,  type: 'TAMAR' },
+  TXMD9: { mat: '2029-12-14', dur: 3.5,  type: 'TAMAR' },
+  TXMJ0: { mat: '2030-06-14', dur: 4.0,  type: 'TAMAR' },
+  TXMJ8: { mat: '2028-12-14', dur: 2.5,  type: 'TAMAR' },
+  TXMJ9: { mat: '2029-06-14', dur: 3.0,  type: 'TAMAR' },
+};
+
+let liveData = [];
+let histChart = null, yieldCurveChart = null, pesosCurveChart = null;
+let scatterChart = null, spreadChart = null, volChart = null;
+let histData = [];
+let histRange = 180;
+let histView = 'price';
+let curveVisible = { GD: true, AL: true, AO: true };
+let pesosCurveType = 'lecap';
+let tableFilters = { usd: 'all', ars: 'all' };
+
+// ════════════════════════════════════════════════
+// TABS
+// ════════════════════════════════════════════════
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  event.target.classList.add('active');
+
+  if (id === 'history' && histData.length === 0) loadHistory();
+}
+
+// ════════════════════════════════════════════════
+// FETCH LIVE DATA
+// ════════════════════════════════════════════════
+async function fetchLive() {
+  try {
+    const r = await fetch(`${API}/live/arg_bonds`);
+    liveData = await r.json();
+    document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-AR');
+    renderAll();
+  } catch(e) {
+    document.getElementById('curves-loader').innerHTML = '⚠️ Error cargando datos. Reintentando…';
+  }
+}
+
+// ════════════════════════════════════════════════
+// YIELD APPROXIMATION
+// For discount bonds (LECAPs): TIR = (VN/Precio)^(1/n) - 1
+// For USD bonds: rough YTM from price + coupon schedule
+// ════════════════════════════════════════════════
+function estimateYTM(ticker, price, meta) {
+  if (!meta) return null;
+  const mat = new Date(meta.mat);
+  const now = new Date();
+  const years = (mat - now) / (1000 * 60 * 60 * 24 * 365.25);
+  if (years <= 0) return null;
+  const coup = meta.coup || 0;
+  const face = 100;
+  // Newton approx for YTM
+  let ytm = coup / price;
+  for (let i = 0; i < 50; i++) {
+    let pv = 0, dpv = 0;
+    const n = Math.ceil(years * 2); // semi-annual
+    for (let t = 1; t <= n; t++) {
+      const cf = (t === n) ? face + coup / 2 : coup / 2;
+      const disc = Math.pow(1 + ytm / 2, t);
+      pv += cf / disc;
+      dpv -= t * cf / (disc * (1 + ytm / 2));
+    }
+    const err = pv - price;
+    if (Math.abs(err) < 0.0001) break;
+    ytm -= err / dpv;
+  }
+  return ytm * 100; // percentage
+}
+
+function estimateLECAPYield(price, matStr) {
+  const mat = new Date(matStr);
+  const now = new Date();
+  const years = (mat - now) / (1000 * 60 * 60 * 24 * 365.25);
+  if (years <= 0) return null;
+  // LECAP: descuento puro → TIR efectiva anual
+  // Precio en % de VN (si cotiza a ~97 de 100)
+  const p = price / 100;
+  const tir = Math.pow(1 / p, 1 / years) - 1;
+  return tir * 100;
+}
+
+// ════════════════════════════════════════════════
+// RENDER ALL
+// ════════════════════════════════════════════════
+function renderAll() {
+  renderKPIs();
+  renderYieldCurve();
+  renderPesosCurve();
+  renderScatter();
+  renderTable();
+  renderSpreads();
+
+  document.getElementById('curves-loader').style.display = 'none';
+  document.getElementById('curves-content').style.display = 'block';
+  document.getElementById('table-loader').style.display = 'none';
+  document.getElementById('table-content').style.display = 'block';
+  document.getElementById('spreads-loader').style.display = 'none';
+  document.getElementById('spreads-content').style.display = 'block';
+}
+
+function getPrice(sym) {
+  const d = liveData.find(x => x.symbol === sym + 'D') || liveData.find(x => x.symbol === sym);
+  return d ? (d.px_bid || d.c) : null;
+}
+
+// ════════════════════════════════════════════════
+// KPIs
+// ════════════════════════════════════════════════
+function renderKPIs() {
+  const kpis = [
+    { label: 'GD30 Yield', value: () => {
+      const p = getPrice('GD30');
+      const y = p ? estimateYTM('GD30', p, BOND_META.GD30) : null;
+      return y ? y.toFixed(2) + '%' : '—';
+    }, sub: 'YTM ~' },
+    { label: 'GD30 Precio', value: () => { const p = getPrice('GD30'); return p ? '$' + p.toFixed(2) : '—'; }, sub: 'USD' },
+    { label: 'GD46 Yield', value: () => {
+      const p = getPrice('GD46');
+      const y = p ? estimateYTM('GD46', p, BOND_META.GD46) : null;
+      return y ? y.toFixed(2) + '%' : '—';
+    }, sub: 'Tramo largo' },
+    { label: 'AL30 Precio', value: () => { const p = getPrice('AL30'); return p ? '$' + p.toFixed(2) : '—'; }, sub: 'USD' },
+    { label: 'Spread GD/AL', value: () => {
+      const gd = getPrice('GD30'), al = getPrice('AL30');
+      if (!gd || !al) return '—';
+      return ((gd - al)).toFixed(2) + ' pts';
+    }, sub: 'Ley NY prima' },
+    { label: 'AO27 Precio', value: () => { const p = getPrice('AO27'); return p ? '$' + p.toFixed(2) : '—'; }, sub: 'USD' },
+  ];
+
+  const el = document.getElementById('kpi-row');
+  el.innerHTML = kpis.map(k => `
+    <div class="kpi-pill">
+      <div class="label">${k.label}</div>
+      <div class="value">${k.value()}</div>
+      <div class="sub">${k.sub}</div>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════════════
+// YIELD CURVE CHART
+// ════════════════════════════════════════════════
+function renderYieldCurve() {
+  const series = { GD: [], AL: [], AO: [] };
+
+  for (const [ticker, meta] of Object.entries(BOND_META)) {
+    const p = getPrice(ticker);
+    if (!p) continue;
+    const ytm = estimateYTM(ticker, p, meta);
+    if (!ytm || ytm < 0 || ytm > 30) continue;
+    series[meta.series].push({ x: meta.dur, y: ytm, label: ticker, price: p, law: meta.law });
+  }
+
+  const datasets = [];
+  if (curveVisible.GD && series.GD.length) {
+    const pts = series.GD.sort((a,b) => a.x - b.x);
+    datasets.push({
+      label: 'GD — Ley Nueva York',
+      data: pts,
+      borderColor: PALETTE.teal,
+      backgroundColor: PALETTE.teal + '22',
+      pointBackgroundColor: PALETTE.teal,
+      pointRadius: 7, pointHoverRadius: 9,
+      borderWidth: 2.5, fill: false, tension: 0.35,
+      pointStyle: 'circle'
+    });
+  }
+  if (curveVisible.AL && series.AL.length) {
+    const pts = series.AL.sort((a,b) => a.x - b.x);
+    datasets.push({
+      label: 'AL — Ley Argentina',
+      data: pts,
+      borderColor: PALETTE.blue,
+      backgroundColor: PALETTE.blue + '22',
+      pointBackgroundColor: PALETTE.blue,
+      pointRadius: 7, pointHoverRadius: 9,
+      borderWidth: 2.5, fill: false, tension: 0.35,
+      borderDash: [5, 3],
+      pointStyle: 'rect'
+    });
+  }
+  if (curveVisible.AO && series.AO.length) {
+    const pts = series.AO.sort((a,b) => a.x - b.x);
+    datasets.push({
+      label: 'BONARs (AO)',
+      data: pts,
+      borderColor: PALETTE.cadet,
+      backgroundColor: PALETTE.cadet + '22',
+      pointBackgroundColor: PALETTE.cadet,
+      pointRadius: 7, pointHoverRadius: 9,
+      borderWidth: 2, fill: false, tension: 0.35,
+      borderDash: [3, 3],
+      pointStyle: 'triangle'
+    });
+  }
+
+  const ctx = document.getElementById('yieldCurveChart').getContext('2d');
+  if (yieldCurveChart) yieldCurveChart.destroy();
+  yieldCurveChart = new Chart(ctx, {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { family: 'Arial', size: 11 }, color: '#20384E', usePointStyle: true } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = ctx.raw;
+              return ` ${d.label}: YTM ${d.y.toFixed(2)}% | Precio ${d.price.toFixed(2)} | Dur ${d.x.toFixed(1)}a`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Duración Modificada (años)', color: '#708090', font: { size: 11 } },
+          min: 0, max: 14,
+          grid: { color: '#f0f0f0' },
+          ticks: { color: '#708090' }
+        },
+        y: {
+          title: { display: true, text: 'YTM estimada (%)', color: '#708090', font: { size: 11 } },
+          grid: { color: '#f0f0f0' },
+          ticks: { color: '#708090', callback: v => v.toFixed(1) + '%' }
+        }
+      }
+    }
+  });
+}
+
+function toggleCurve(series) {
+  curveVisible[series] = !curveVisible[series];
+  event.target.classList.toggle('active');
+  renderYieldCurve();
+}
+
+// ════════════════════════════════════════════════
+// PESOS CURVE
+// ════════════════════════════════════════════════
+function setPesosCurveType(type) {
+  pesosCurveType = type;
+  document.querySelectorAll('#page-curves .teal-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderPesosCurve();
+}
+
+function renderPesosCurve() {
+  const ctx = document.getElementById('pesosCurveChart').getContext('2d');
+  if (pesosCurveChart) pesosCurveChart.destroy();
+
+  let pts = [];
+  const meta = { ...LECAP_META, ...TAMAR_META };
+
+  for (const [ticker, m] of Object.entries(meta)) {
+    if (pesosCurveType === 'lecap' && m.type !== 'LECAP' && m.type !== 'BONCAP') continue;
+    if (pesosCurveType === 'tamar' && m.type !== 'TAMAR') continue;
+
+    const raw = liveData.find(x => x.symbol === ticker);
+    if (!raw) continue;
+    const price = raw.px_bid || raw.c;
+    if (!price) continue;
+
+    let yield_;
+    if (m.type === 'LECAP' || m.type === 'BONCAP') {
+      // Cotiza en % de VN
+      yield_ = estimateLECAPYield(price, m.mat);
+    } else {
+      // TAMAR: floating, pero podemos mostrar precio vs dur
+      yield_ = null; // TBD
+    }
+
+    if (yield_ !== null && yield_ > 0 && yield_ < 200) {
+      pts.push({ x: m.dur, y: yield_, label: ticker, price });
+    } else if (m.type === 'TAMAR') {
+      // For TAMAR: show spread above TAMAR rate (approx)
+      pts.push({ x: m.dur, y: price, label: ticker, price });
+    }
+  }
+
+  pts = pts.sort((a,b) => a.x - b.x);
+  const isPercent = pesosCurveType === 'lecap';
+
+  pesosCurveChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: pesosCurveType === 'lecap' ? 'LECAPs — TIR Efectiva Anual (%)' : 'TAMAR Bullets — Precio',
+        data: pts,
+        borderColor: PALETTE.navy,
+        backgroundColor: PALETTE.navy + '15',
+        pointBackgroundColor: pts.map(p => PALETTE.navy),
+        pointRadius: 7, borderWidth: 2.5, tension: 0.3, fill: true
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { font: { family: 'Arial', size: 11 }, color: '#20384E' } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = ctx.raw;
+              const v = isPercent ? d.y.toFixed(2) + '%' : d.y.toFixed(2);
+              return ` ${d.label}: ${isPercent ? 'TIR ' : 'Precio '}${v} | Dur ${d.x.toFixed(2)}a`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Duration (años)', color: '#708090', font: { size: 11 } },
+          grid: { color: '#f0f0f0' }, ticks: { color: '#708090' }
+        },
+        y: {
+          title: { display: true, text: isPercent ? 'TIR Efectiva Anual (%)' : 'Precio (% VN)', color: '#708090', font: { size: 11 } },
+          grid: { color: '#f0f0f0' },
+          ticks: { color: '#708090', callback: v => isPercent ? v.toFixed(1) + '%' : v.toFixed(2) }
+        }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════════
+// SCATTER: Paridad vs Duration
+// ════════════════════════════════════════════════
+function renderScatter() {
+  const ctx = document.getElementById('scatterChart').getContext('2d');
+  if (scatterChart) scatterChart.destroy();
+
+  const gdPts = [], alPts = [], aoPts = [];
+  for (const [ticker, meta] of Object.entries(BOND_META)) {
+    const p = getPrice(ticker);
+    if (!p) continue;
+    const pt = { x: meta.dur, y: p, label: ticker };
+    if (meta.series === 'GD') gdPts.push(pt);
+    else if (meta.series === 'AL') alPts.push(pt);
+    else aoPts.push(pt);
+  }
+
+  scatterChart = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [
+        { label: 'GD', data: gdPts, backgroundColor: PALETTE.teal, pointRadius: 8 },
+        { label: 'AL', data: alPts, backgroundColor: PALETTE.blue, pointRadius: 8, pointStyle: 'rect' },
+        { label: 'AO', data: aoPts, backgroundColor: PALETTE.cadet, pointRadius: 8, pointStyle: 'triangle' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { family: 'Arial', size: 11 }, color: '#20384E', usePointStyle: true } },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw.label}: $${ctx.raw.y.toFixed(2)} / Dur ${ctx.raw.x.toFixed(1)}a` } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Duration (años)', color: '#708090' }, grid: { color: '#f0f0f0' }, ticks: { color: '#708090' } },
+        y: { title: { display: true, text: 'Precio (USD)', color: '#708090' }, grid: { color: '#f0f0f0' }, ticks: { color: '#708090', callback: v => '$' + v } }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════════
+// TABLES
+// ════════════════════════════════════════════════
+function renderTable() {
+  // USD bonds
+  const usdBonds = liveData.filter(d => {
+    const sym = d.symbol;
+    return sym.endsWith('D') && (sym.startsWith('GD') || sym.startsWith('AL') || sym.startsWith('AO')) && !sym.includes('C');
+  });
+
+  const arsInstruments = liveData.filter(d => {
+    const sym = d.symbol;
+    return (sym.startsWith('TZX') || sym.startsWith('TZV') || sym.startsWith('TX') || sym.startsWith('TXM')) && !sym.endsWith('D') && !sym.endsWith('C');
+  });
+
+  populateTable('usd-table', usdBonds, true);
+  populateTable('ars-table', arsInstruments, false);
+}
+
+function populateTable(tableId, data, isUsd) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  const filter = isUsd ? tableFilters.usd : tableFilters.ars;
+
+  let filtered = data;
+  if (filter !== 'all') {
+    filtered = data.filter(d => d.symbol.includes(filter));
+  }
+
+  // Sort by change
+  filtered.sort((a, b) => (b.px_bid || 0) - (a.px_bid || 0));
+
+  tbody.innerHTML = filtered.slice(0, 20).map(d => {
+    const chg = d.pct_change || 0;
+    const chgClass = chg > 0 ? 'pos' : chg < 0 ? 'neg' : '';
+    const vol = d.v ? (d.v / 1000).toFixed(0) + 'K' : '—';
+    return `<tr>
+      <td>${d.symbol}</td>
+      <td>${d.px_bid ? d.px_bid.toFixed(2) : '—'}</td>
+      <td>${d.px_ask ? d.px_ask.toFixed(2) : '—'}</td>
+      <td><strong>${d.c ? d.c.toFixed(2) : '—'}</strong></td>
+      <td style="color:#708090">${vol}</td>
+      <td class="${chgClass}">${chg > 0 ? '+' : ''}${chg.toFixed(2)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function filterTable(type, filter) {
+  tableFilters[type] = filter;
+  event.target.closest('.card').querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderTable();
+}
+
+// ════════════════════════════════════════════════
+// SPREADS
+// ════════════════════════════════════════════════
+function renderSpreads() {
+  // GD vs AL spread by maturity
+  const matPoints = ['30', '35', '41'];
+  const labels = ['2030', '2035', '2041'];
+  const gdPrices = matPoints.map(m => getPrice('GD' + m));
+  const alPrices = matPoints.map(m => getPrice('AL' + m));
+  const spreads = matPoints.map((m, i) => {
+    const gd = gdPrices[i], al = alPrices[i];
+    return (gd && al) ? (gd - al).toFixed(2) : null;
+  });
+
+  const ctx = document.getElementById('spreadChart').getContext('2d');
+  if (spreadChart) spreadChart.destroy();
+  spreadChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Precio GD (Ley NY)',
+          data: gdPrices,
+          backgroundColor: PALETTE.teal + 'CC',
+          borderColor: PALETTE.teal, borderWidth: 1.5,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Precio AL (Ley ARG)',
+          data: alPrices,
+          backgroundColor: PALETTE.blue + 'CC',
+          borderColor: PALETTE.blue, borderWidth: 1.5,
+          yAxisID: 'y'
+        },
+        {
+          label: 'Spread GD-AL (pts)',
+          data: spreads.map(Number),
+          type: 'line',
+          borderColor: PALETTE.cadet,
+          backgroundColor: PALETTE.cadet + '33',
+          pointRadius: 6, borderWidth: 2.5,
+          yAxisID: 'y2', tension: 0.3
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { family: 'Arial', size: 11 }, color: '#20384E' } }
+      },
+      scales: {
+        y: { title: { display: true, text: 'Precio (USD)', color: '#708090' }, grid: { color: '#f0f0f0' }, ticks: { color: '#708090', callback: v => '$' + v } },
+        y2: { position: 'right', title: { display: true, text: 'Spread (pts)', color: PALETTE.cadet }, grid: { drawOnChartArea: false }, ticks: { color: PALETTE.cadet } }
+      }
+    }
+  });
+
+  // YTM ranking
+  const ytmList = [];
+  for (const [ticker, meta] of Object.entries(BOND_META)) {
+    const p = getPrice(ticker);
+    if (!p) continue;
+    const ytm = estimateYTM(ticker, p, meta);
+    if (ytm && ytm > 0) ytmList.push({ ticker, ytm, price: p, series: meta.series });
+  }
+  ytmList.sort((a, b) => b.ytm - a.ytm);
+
+  const rankEl = document.getElementById('ytm-ranking');
+  rankEl.innerHTML = ytmList.map((item, i) => {
+    const colors = { GD: PALETTE.teal, AL: PALETTE.blue, AO: PALETTE.cadet };
+    const col = colors[item.series] || PALETTE.gray;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f4f6f9;">
+      <div style="font-weight:700;color:${col};font-size:12px;">${item.ticker}</div>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span style="font-size:11px;color:#708090;">$${item.price.toFixed(2)}</span>
+        <span style="font-weight:700;color:#003468;font-size:13px;">${item.ytm.toFixed(2)}%</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Volume chart
+  const volData = liveData
+    .filter(d => d.symbol.endsWith('D') && (d.symbol.startsWith('GD') || d.symbol.startsWith('AL') || d.symbol.startsWith('AO')))
+    .filter(d => d.v > 0)
+    .sort((a, b) => b.v - a.v)
+    .slice(0, 8);
+
+  const ctx2 = document.getElementById('volChart').getContext('2d');
+  if (volChart) volChart.destroy();
+  volChart = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: volData.map(d => d.symbol.replace('D', '')),
+      datasets: [{
+        data: volData.map(d => d.v / 1e6),
+        backgroundColor: volData.map(d => d.symbol.startsWith('GD') ? PALETTE.teal : d.symbol.startsWith('AL') ? PALETTE.blue : PALETTE.cadet),
+        borderRadius: 3
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { title: { display: false }, grid: { color: '#f0f0f0' }, ticks: { color: '#708090', callback: v => v.toFixed(1) + 'M' } },
+        x: { ticks: { color: '#708090', font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Metrics panel
+  const gd30p = getPrice('GD30');
+  const gd46p = getPrice('GD46');
+  const al30p = getPrice('AL30');
+  const gd30y = gd30p ? estimateYTM('GD30', gd30p, BOND_META.GD30) : null;
+  const gd46y = gd46p ? estimateYTM('GD46', gd46p, BOND_META.GD46) : null;
+  const al30y = al30p ? estimateYTM('AL30', al30p, BOND_META.AL30) : null;
+
+  const metricsEl = document.getElementById('metrics-panel');
+  metricsEl.innerHTML = [
+    { label: 'Pendiente curva GD (30-46)', value: gd30y && gd46y ? ((gd46y - gd30y).toFixed(2) + ' bps aprox.') : '—' },
+    { label: 'Prima Ley NY (GD30-AL30)', value: gd30p && al30p ? ((gd30p - al30p).toFixed(2) + ' pts precio') : '—' },
+    { label: 'GD30 / GD46 ratio', value: gd30p && gd46p ? (gd30p / gd46p).toFixed(3) : '—' },
+    { label: 'YTM GD30', value: gd30y ? gd30y.toFixed(2) + '%' : '—' },
+    { label: 'YTM GD46', value: gd46y ? gd46y.toFixed(2) + '%' : '—' },
+    { label: 'YTM AL30', value: al30y ? al30y.toFixed(2) + '%' : '—' },
+  ].map(m => `
+    <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f4f6f9;">
+      <span style="color:#708090;font-size:11px;">${m.label}</span>
+      <span style="font-weight:700;color:#003468;font-size:12px;">${m.value}</span>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════════════
+// HISTORY
+// ════════════════════════════════════════════════
+async function loadHistory() {
+  const ticker = document.getElementById('hist-ticker').value;
+  document.getElementById('hist-loader').style.display = 'block';
+
+  try {
+    const r = await fetch(`${API}/historical/bonds/${ticker}`);
+    histData = await r.json();
+    renderHistory();
+  } catch(e) {
+    document.getElementById('hist-loader').innerHTML = '⚠️ Error cargando histórico.';
+  } finally {
+    document.getElementById('hist-loader').style.display = 'none';
+  }
+}
+
+function setRange(days) {
+  histRange = days;
+  document.querySelectorAll('#page-history .btn').forEach(b => {
+    if (!b.getAttribute('onclick')?.includes('setHistView')) b.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  renderHistory();
+}
+
+function setHistView(view) {
+  histView = view;
+  document.querySelectorAll('#page-history .btn').forEach(b => {
+    if (b.getAttribute('onclick')?.includes('setHistView')) b.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!histData.length) return;
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - histRange);
+  const filtered = histData.filter(d => new Date(d.date) >= cutoff);
+
+  const labels = filtered.map(d => d.date);
+  let data, yLabel, color, yCallback;
+
+  if (histView === 'price') {
+    data = filtered.map(d => d.c);
+    yLabel = 'Precio cierre';
+    color = PALETTE.teal;
+    yCallback = v => v.toFixed(0);
+  } else if (histView === 'yield') {
+    data = filtered.map(d => d.sa * 100);
+    yLabel = 'Rendimiento SA (%)';
+    color = PALETTE.blue;
+    yCallback = v => v.toFixed(2) + '%';
+  } else {
+    data = filtered.map(d => d.v / 1e6);
+    yLabel = 'Volumen (M ARS)';
+    color = PALETTE.cadet;
+    yCallback = v => v.toFixed(1) + 'M';
+  }
+
+  const ctx = document.getElementById('histChart').getContext('2d');
+  if (histChart) histChart.destroy();
+
+  histChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: `${document.getElementById('hist-ticker').value} — ${yLabel}`,
+        data,
+        borderColor: color,
+        backgroundColor: color + '18',
+        borderWidth: 2,
+        pointRadius: 0, pointHoverRadius: 4,
+        fill: true, tension: 0.2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { font: { family: 'Arial', size: 11 }, color: '#20384E' } },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#708090', font: { size: 10 },
+            maxTicksLimit: 12,
+            callback: function(val, idx) {
+              const d = this.getLabelForValue(val);
+              return d ? d.slice(0, 7) : '';
+            }
+          },
+          grid: { color: '#f4f6f9' }
+        },
+        y: {
+          title: { display: true, text: yLabel, color: '#708090', font: { size: 11 } },
+          grid: { color: '#f0f0f0' },
+          ticks: { color: '#708090', callback: yCallback }
+        }
+      }
+    }
+  });
+
+  // Stats bar
+  const min = Math.min(...data), max = Math.max(...data);
+  const avg = data.reduce((a,b) => a+b, 0) / data.length;
+  const last = data[data.length - 1];
+  const first = data[0];
+  const chg = ((last - first) / first * 100).toFixed(2);
+  const chgClass = chg > 0 ? 'pos' : 'neg';
+
+  document.getElementById('hist-stats').innerHTML = `
+    <div>Último: <span>${last?.toFixed(2)}</span></div>
+    <div>Mín: <span>${min?.toFixed(2)}</span></div>
+    <div>Máx: <span>${max?.toFixed(2)}</span></div>
+    <div>Promedio: <span>${avg?.toFixed(2)}</span></div>
+    <div>Var. período: <span class="${chgClass}">${chg > 0 ? '+' : ''}${chg}%</span></div>
+    <div>Datos: <span>${filtered.length} ruedas</span></div>
+  `;
+}
+
+// ════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════
+fetchLive();
+// Auto-refresh every 2 min (API cachea ~2hs pero refresh igual)
+setInterval(fetchLive, 120000);
+</script>
+</body>
+</html>
